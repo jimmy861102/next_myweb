@@ -1,6 +1,7 @@
 // pages/index.tsx
 import { useState } from "react";
 import axios from "axios";
+import { log } from "node:console";
 
 type RawItem = {
   整合編號: string;
@@ -60,6 +61,7 @@ export default function Foodcount() {
   const [rows, setRows] = useState<NutritionRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [servings, setServings] = useState<Record<string, number>>({});
 
   const fetchFood = async () => {
     if (!name.trim()) {
@@ -95,12 +97,17 @@ export default function Foodcount() {
 
       const row = toNutritionRow(sameSample);
 
+      setServings((prev) =>
+        prev[row.name] ? prev : { ...prev, [row.name]: 100 }
+      );
+
       // 累積顯示：若已存在同名樣品就覆蓋，不同樣品就新增
       setRows((prev) => {
         const idx = prev.findIndex((r) => r.name === row.name);
         if (idx >= 0) {
           const copy = [...prev];
           copy[idx] = row;
+          console.log(rows);
           return copy;
         }
         return [...prev, row];
@@ -115,6 +122,19 @@ export default function Foodcount() {
   const clearAll = () => {
     setRows([]);
     setError("");
+  };
+
+  const countkal = () => {
+    // 每列「每份」熱量 = 每100g熱量 * (克數 / 100)
+    const result = rows.map((r) => {
+      const grams = servings[r.name] ?? 100;
+      const kcalPerServing =
+        typeof r.calories === "number"
+          ? +(r.calories * (grams / 100)).toFixed(0)
+          : undefined;
+      return { name: r.name, grams, kcalPerServing };
+    });
+    console.log(result);
   };
 
   return (
@@ -138,6 +158,9 @@ export default function Foodcount() {
         <button onClick={clearAll} className="bg-gray-200 px-3 py-2 rounded">
           清空
         </button>
+        <button onClick={countkal} className="bg-gray-200 px-3 py-2 rounded">
+          計算熱量
+        </button>
       </div>
 
       {error && <p className="text-red-600 mb-3">{error}</p>}
@@ -147,6 +170,7 @@ export default function Foodcount() {
           <table className="min-w-full border rounded overflow-hidden">
             <thead className="bg-gray-50">
               <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left">
+                <th>克數</th>
                 <th>樣品名稱</th>
                 <th>熱量 (kcal)</th>
                 <th>蛋白質 (g)</th>
@@ -164,6 +188,21 @@ export default function Foodcount() {
                   key={r.name}
                   className="odd:bg-white even:bg-gray-50 border-t"
                 >
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      className="w-16 text-sm text-gray-700 border rounded px-1"
+                      value={servings[r.name] ?? 100}
+                      min={0}
+                      onChange={(e) => {
+                        const grams = Number(e.target.value);
+                        setServings((prev) => ({
+                          ...prev,
+                          [r.name]: grams >= 0 ? grams : 0,
+                        }));
+                      }}
+                    />
+                  </td>
                   <td className="px-3 py-2 font-medium">{r.name}</td>
                   <td className="px-3 py-2">{r.calories ?? "-"}</td>
                   <td className="px-3 py-2">{r.protein ?? "-"}</td>
